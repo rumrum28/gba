@@ -158,15 +158,28 @@ async function fetchCloudSave(gameId) {
   }
 }
 
+/* A freshly booted cartridge has uninitialized SRAM (all 0xFF, sometimes all
+   0x00). Treating that as a real save is what lets a new device wipe the
+   cloud copy, so blank saves are never pushed, stored, or preferred. */
+function isBlankSave(bytes) {
+  if (!bytes || bytes.length === 0) return true;
+  const first = bytes[0];
+  if (first !== 0xff && first !== 0x00) return false;
+  for (let i = 1; i < bytes.length; i++) if (bytes[i] !== first) return false;
+  return true;
+}
+
 async function pushCloudSave(gameId, bytes) {
-  if (!CLOUD_SAVE_URL) return;
+  if (!CLOUD_SAVE_URL || isBlankSave(bytes)) return false;
   try {
-    await fetch(CLOUD_SAVE_URL, {
+    const res = await fetch(CLOUD_SAVE_URL, {
       method: "POST",
       body: JSON.stringify({ action: "save", game: gameId, key: CLOUD_SAVE_KEY, base64: bytesToBase64(bytes) }),
     });
+    const data = await res.json();
+    return !!data.ok;
   } catch (e) {
-    // best-effort - IndexedDB still has the save locally
+    return false; // best-effort - IndexedDB still has the save locally
   }
 }
 
@@ -198,7 +211,10 @@ async function resolveInitialSave(game) {
   if (local) candidates.push({ bytes: local.bytes, time: local.savedAt, source: "browser" });
   if (serverBytes) candidates.push({ bytes: serverBytes, time: serverTime, source: "server" });
   if (cloud) candidates.push({ bytes: cloud.bytes, time: cloud.modifiedTime, source: "cloud" });
-  if (candidates.length === 0) return null;
+  const real = candidates.filter((c) => !isBlankSave(c.bytes));
+  if (real.length === 0) return null;
+  candidates.length = 0;
+  candidates.push(...real);
 
   candidates.sort((a, b) => b.time - a.time);
   return candidates[0];
@@ -239,9 +255,13 @@ function downloadBlob(bytes, filename) {
    Launching a game
    ========================================================================= */
 let currentGame = null;
+// False until the initial save has been resolved and applied. Until then the
+// core's SRAM is still blank, and mirroring it would clobber the real save.
+let saveReady = false;
 
 async function launchGame(game) {
   currentGame = game;
+  saveReady = false;
   $("#launcher-screen").classList.add("hidden");
   $("#player-screen").classList.remove("hidden");
   $("#player-title").textContent = game.title;
@@ -281,14 +301,14 @@ async function launchGame(game) {
     try {
       const resolved = await resolveInitialSave(game);
       if (resolved) {
-        setTimeout(() => {
-          applySaveBytes(resolved.bytes);
-          toast(`Loaded save from ${resolved.source}`);
-        }, 50);
+        await new Promise((r) => setTimeout(r, 50));
+        applySaveBytes(resolved.bytes);
+        toast(`Loaded save from ${resolved.source}`);
       }
     } catch (e) {
       console.error("Save preload failed", e);
     }
+    saveReady = true;
     $("#save-controls").classList.remove("hidden");
     renderSlots(game);
   };
@@ -296,6 +316,7 @@ async function launchGame(game) {
   window.EJS_onSaveUpdate = async (e) => {
     // e: { hash, save, screenshot, format } - fired only when the SRAM
     // content actually changed since the last check (every EJS_fixedSaveInterval).
+    if (!saveReady || isBlankSave(e.save)) return;
     await idbPut("saves", { gameId: game.id, bytes: e.save, savedAt: Date.now(), hash: e.hash });
     pushCloudSave(game.id, e.save); // best-effort, keeps other devices in sync automatically
   };
@@ -433,6 +454,31 @@ async function onDownloadSave() {
   }
 }
 
+/* =========================================================================
+   Manual cloud sync buttons
+   The game only reads SRAM at boot, so after pulling a save we restart the
+   core; otherwise "Continue" on the title screen would still show old data.
+   ========================================================================= */
+async function onPullCloudSave() {
+  if (!currentGame || !window.EJS_emulator) return;
+  toast("Fetching cloud save...");
+  const cloud = await fetchCloudSave(currentGame.id);
+  if (!cloud) return toast("No cloud save found (or cloud unreachable)");
+  if (isBlankSave(cloud.bytes)) return toast("Cloud save is empty - not loading it");
+  applySaveBytes(cloud.bytes);
+  await idbPut("saves", { gameId: currentGame.id, bytes: cloud.bytes, savedAt: Date.now() });
+  try { window.EJS_emulator.gameManager.restart(); } catch (e) {}
+  toast(`Loaded cloud save (${new Date(cloud.modifiedTime).toLocaleString()})`);
+}
+
+async function onPushCloudSave() {
+  if (!currentGame || !window.EJS_emulator) return;
+  const bytes = await window.EJS_emulator.gameManager.getSaveFile();
+  if (isBlankSave(bytes)) return toast("No in-game save yet - save in the game first");
+  await idbPut("saves", { gameId: currentGame.id, bytes, savedAt: Date.now() });
+  toast((await pushCloudSave(currentGame.id, bytes)) ? "Uploaded to cloud" : "Cloud upload failed");
+}
+
 function onImportSaveFile(fileList) {
   const file = fileList[0];
   if (!file || !currentGame) return;
@@ -507,5 +553,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#landscape-btn").addEventListener("click", onToggleLandscape);
   $("#mute-btn").addEventListener("click", onToggleMute);
   $("#download-save-btn").addEventListener("click", onDownloadSave);
+  $("#pull-cloud-btn").addEventListener("click", onPullCloudSave);
+  $("#push-cloud-btn").addEventListener("click", onPushCloudSave);
   $("#import-save-input").addEventListener("change", (e) => onImportSaveFile(e.target.files));
 });
