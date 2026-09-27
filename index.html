@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GBA Launcher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <h1>GBA Launcher</h1>
+    <span class="subtitle">personal use only</span>
+  </header>
+
+  <!-- Game library -->
+  <main id="launcher-screen">
+    <div id="game-grid" class="game-grid"></div>
+  </main>
+
+  <!-- Emulator screen (hidden until a game is launched) -->
+  <main id="player-screen" class="hidden">
+    <div class="player-toolbar">
+      <button id="back-btn" class="pixel-btn">&lt; Library</button>
+      <span id="player-title" class="game-title-tag"></span>
+      <span class="spacer"></span>
+      <div id="save-controls" class="hidden" style="display:flex; gap:8px;">
+        <button id="mute-btn" class="pixel-btn">Mute</button>
+        <button id="download-save-btn" class="pixel-btn primary">Download Save</button>
+        <button id="import-save-btn" class="pixel-btn" onclick="document.getElementById('import-save-input').click()">Import Save</button>
+        <input id="import-save-input" type="file" accept=".sav,.srm" class="hidden">
+      </div>
+    </div>
+
+    <!-- EmulatorJS mounts its canvas + its own control bar (pause, fullscreen,
+         volume, fast-forward, on-screen touch pad, gamepad settings) here -->
+    <div id="game"></div>
+
+    <div id="save-slots" class="save-slots"></div>
+  </main>
+
+  <div id="toast"></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
