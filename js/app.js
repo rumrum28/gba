@@ -182,6 +182,8 @@ async function launchGame(game) {
   $("#player-title").textContent = game.title;
   $("#game").innerHTML = "";
   $("#mute-btn").textContent = "Mute";
+  document.body.classList.remove("force-landscape");
+  $("#landscape-btn").textContent = "Landscape";
 
   // ---- EmulatorJS config (must be set on window before loader.js runs) ----
   window.EJS_player = "#game";
@@ -255,7 +257,60 @@ function backToLibrary() {
   $("#save-controls").classList.add("hidden");
   $("#player-screen").classList.add("hidden");
   $("#launcher-screen").classList.remove("hidden");
+  document.body.classList.remove("force-landscape");
   currentGame = null;
+}
+
+/* =========================================================================
+   Fullscreen + Landscape (mobile)
+   toggleFullscreen(true) is EmulatorJS's own real method (data/src/emulator.js)
+   and on mobile it already tries screen.orientation.lock("landscape") itself
+   for the gba core - Android Chrome honors that inside fullscreen, iOS Safari
+   doesn't support the API at all. The Landscape button below is a separate,
+   CSS-only fallback (see .force-landscape in style.css) that rotates the
+   player screen so it works everywhere, fullscreen or not.
+   ========================================================================= */
+function onToggleFullscreen() {
+  if (!window.EJS_emulator) return;
+  try {
+    window.EJS_emulator.toggleFullscreen(!document.fullscreenElement);
+  } catch (e) {
+    toast("Fullscreen not available in this browser/app");
+  }
+}
+
+function onToggleLandscape() {
+  const on = document.body.classList.toggle("force-landscape");
+  $("#landscape-btn").textContent = on ? "Undo Landscape" : "Landscape";
+  try {
+    if (on && screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock("landscape").catch(() => {});
+    } else if (!on && screen.orientation && screen.orientation.unlock) {
+      screen.orientation.unlock();
+    }
+  } catch (e) {
+    // Orientation Lock API unsupported (e.g. iOS Safari) - the CSS rotation above still applies
+  }
+}
+
+/* =========================================================================
+   Haptic feedback for the on-screen touch controls
+   EmulatorJS renders its virtual D-pad/A/B/Start/Select/L/R buttons with the
+   stable class "ejs_virtualGamepad_button" (data/src/frontend.js) whenever a
+   touch device is detected. We don't touch how input is sent to the core -
+   just delegate a touchstart listener to add a short vibration on tap.
+   ========================================================================= */
+function setupVibration() {
+  if (!("vibrate" in navigator)) return;
+  document.addEventListener(
+    "touchstart",
+    (e) => {
+      if (e.target.closest(".ejs_virtualGamepad_button, .ejs_dpad_main")) {
+        navigator.vibrate(15);
+      }
+    },
+    { passive: true }
+  );
 }
 
 /* =========================================================================
@@ -373,7 +428,10 @@ async function loadStateSlot(game, slot) {
    ========================================================================= */
 document.addEventListener("DOMContentLoaded", () => {
   renderLauncher();
+  setupVibration();
   $("#back-btn").addEventListener("click", backToLibrary);
+  $("#fullscreen-btn").addEventListener("click", onToggleFullscreen);
+  $("#landscape-btn").addEventListener("click", onToggleLandscape);
   $("#mute-btn").addEventListener("click", onToggleMute);
   $("#download-save-btn").addEventListener("click", onDownloadSave);
   $("#import-save-input").addEventListener("change", (e) => onImportSaveFile(e.target.files));

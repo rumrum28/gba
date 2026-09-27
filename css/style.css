@@ -219,3 +219,31 @@ button {
   body { font-size: 10px; }
   .pixel-btn { font-size: 8px; padding: 7px 8px; }
 }
+
+/* ---------- Force-landscape mode (mobile) ----------
+   Screen Orientation Lock only works inside fullscreen and isn't supported at
+   all on iOS Safari, so the Landscape button falls back to this CSS rotation
+   trick instead - it works on any phone regardless of browser support. */
+@media (orientation: portrait) {
+  body.force-landscape {
+    overflow: hidden;
+  }
+  body.force-landscape .site-header {
+    display: none;
+  }
+  body.force-landscape #player-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vh;
+    height: 100vw;
+    max-width: none;
+    margin: 0;
+    padding: 10px;
+    overflow-y: auto;
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100%);
+    z-index: 500;
+    background: var(--red);
+  }
+}

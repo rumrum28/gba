@@ -25,7 +25,9 @@
       <button id="back-btn" class="pixel-btn">&lt; Library</button>
       <span id="player-title" class="game-title-tag"></span>
       <span class="spacer"></span>
-      <div id="save-controls" class="hidden" style="display:flex; gap:8px;">
+      <div id="save-controls" class="hidden" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="fullscreen-btn" class="pixel-btn">Fullscreen</button>
+        <button id="landscape-btn" class="pixel-btn">Landscape</button>
         <button id="mute-btn" class="pixel-btn">Mute</button>
         <button id="download-save-btn" class="pixel-btn primary">Download Save</button>
         <button id="import-save-btn" class="pixel-btn" onclick="document.getElementById('import-save-input').click()">Import Save</button>
