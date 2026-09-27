@@ -494,8 +494,14 @@ function onImportSaveFile(fileList) {
 }
 
 /* =========================================================================
-   Save states: 3 slots in IndexedDB
+   Save states: 3 slots in IndexedDB, mirrored to the cloud.
+   Each slot is stored on Drive as its own file ("<gameId>-state<N>.sav"),
+   reusing the same Apps Script endpoint - no Code.gs changes needed.
    ========================================================================= */
+function cloudStateId(game, slot) {
+  return `${game.id}-state${slot}`;
+}
+
 async function renderSlots(game) {
   const container = $("#save-slots");
   container.innerHTML = "";
@@ -509,10 +515,12 @@ async function renderSlots(game) {
       <div class="slot-actions">
         <button class="pixel-btn" data-act="save">Save</button>
         <button class="pixel-btn" data-act="load" ${record ? "" : "disabled"}>Load</button>
+        ${CLOUD_SAVE_URL ? '<button class="pixel-btn" data-act="cloud">Load Cloud</button>' : ""}
       </div>
     `;
     el.querySelector('[data-act="save"]').addEventListener("click", () => saveStateSlot(game, slot));
     el.querySelector('[data-act="load"]').addEventListener("click", () => loadStateSlot(game, slot));
+    el.querySelector('[data-act="cloud"]')?.addEventListener("click", () => loadCloudStateSlot(game, slot));
     container.appendChild(el);
   }
 }
@@ -525,6 +533,11 @@ function saveStateSlot(game, slot) {
       toast(`Saved to slot ${slot}`);
       renderSlots(game);
     });
+    if (CLOUD_SAVE_URL) {
+      pushCloudSave(cloudStateId(game, slot), state).then((ok) =>
+        toast(ok ? `Slot ${slot} uploaded to cloud` : `Slot ${slot} cloud upload failed`)
+      );
+    }
   } catch (e) {
     toast("Save state failed");
   }
@@ -537,6 +550,21 @@ async function loadStateSlot(game, slot) {
   try {
     window.EJS_emulator.gameManager.loadState(record.bytes);
     toast(`Loaded slot ${slot}`);
+  } catch (e) {
+    toast("Load state failed");
+  }
+}
+
+async function loadCloudStateSlot(game, slot) {
+  if (!window.EJS_emulator) return;
+  toast(`Fetching slot ${slot} from cloud...`);
+  const cloud = await fetchCloudSave(cloudStateId(game, slot));
+  if (!cloud) return toast(`No cloud copy of slot ${slot} (or cloud unreachable)`);
+  try {
+    window.EJS_emulator.gameManager.loadState(cloud.bytes);
+    await idbPut("states", { gameId: game.id, slot, bytes: cloud.bytes, savedAt: cloud.modifiedTime });
+    renderSlots(game);
+    toast(`Loaded slot ${slot} from cloud`);
   } catch (e) {
     toast("Load state failed");
   }

@@ -186,7 +186,7 @@ button {
 
 .save-slot .slot-label { font-size: 9px; margin-bottom: 6px; }
 .save-slot .slot-meta { font-size: 7px; opacity: 0.7; margin-bottom: 8px; min-height: 14px; }
-.save-slot .slot-actions { display: flex; gap: 6px; justify-content: center; }
+.save-slot .slot-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 
 /* ---------- Toast ---------- */
 #toast {
