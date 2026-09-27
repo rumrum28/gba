@@ -17,6 +17,7 @@ js/app.js                  <- games list + all launcher/save logic
 games/pokemon-fire-red.gba <- your ROM (already present)
 games/savefiles/           <- shipped .sav files, one per game
 server/save-server.js      <- optional local upload endpoint (see below)
+server/apps-script/Code.gs <- optional Drive-backed cloud save endpoint
 ```
 
 ## Run it locally
@@ -60,8 +61,10 @@ Drop the `.gba` file in `games/` and it shows up on the launcher screen.
   to carry progress to another device.
 - **Import Save** lets you pick any `.sav` file from disk and load it into the
   running game immediately.
-- Whichever is newer (your IndexedDB copy vs. the shipped server file, compared
-  by save time) wins when a game starts.
+- Whichever is newer (your IndexedDB copy vs. the shipped server file vs. the
+  optional cloud save below, compared by save time) wins when a game starts.
+- None of the above actually reaches you on a *different* device unless you
+  set up the cloud save - see "Cloud saves via Google Drive" further down.
 
 ### Optional: auto-upload saves to a server
 GitHub Pages is static and can't receive uploads, but if you self-host
@@ -93,6 +96,47 @@ node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
 and put it in both places. To disable auto-upload again, set
 `UPLOAD_ENDPOINT = ""` in `js/app.js`.
 
+### Cloud saves via Google Drive (play on any device)
+
+The pieces above solve saves surviving a refresh, or syncing while a
+`localhost` upload server happens to be running - neither actually gets you
+"play on my phone, pick up on my laptop" from anywhere. For that, deploy a
+small Google Apps Script tied to your own Drive as a public Web App - it's
+free, needs no server you have to keep running, and the player never has to
+sign into anything.
+
+1. Go to [script.google.com](https://script.google.com) -> **New project**.
+2. Delete the default code and paste in the contents of
+   `server/apps-script/Code.gs`.
+3. Change `const SECRET_KEY = "CHANGE-ME";` to a random string, e.g. generate
+   one with:
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
+   ```
+4. **Deploy -> New deployment** -> type: **Web app**.
+   - Execute as: **Me**
+   - Who has access: **Anyone**
+5. Click **Deploy**, authorize it (it's your own script, acting on your own
+   Drive), and copy the `.../exec` URL it gives you.
+6. In `js/app.js`, set:
+   ```js
+   const CLOUD_SAVE_URL = "https://script.google.com/macros/s/AKfycb.../exec";
+   const CLOUD_SAVE_KEY = "same-random-string-as-SECRET_KEY";
+   ```
+7. Push/redeploy the launcher. It now auto-uploads to Drive whenever your
+   in-game save changes, and on boot picks the newest of: this browser's
+   IndexedDB copy, the `.sav` shipped in the repo, and the Drive copy.
+
+The first time it runs, the script creates a folder named **"GBA Launcher
+Saves"** in your Drive with one real `.sav` file per game - open it in Drive
+like any other file if you want to inspect or manually back it up. Each
+overwrite trashes (not deletes) the previous version, so Drive's own Trash
+doubles as informal undo history.
+
+If you ever edit `Code.gs`, you must **Manage deployments -> Edit -> New
+version** for the change to actually take effect on the same URL - saving in
+the editor alone doesn't redeploy it.
+
 ## Save states
 
 Three slots per game, stored in IndexedDB (independent from the cartridge
@@ -111,6 +155,18 @@ These are all provided by EmulatorJS's own control bar under the game screen:
 
 The launcher recolors this bar (`EJS_color`) to match the red/white theme but
 doesn't reimplement any of it.
+
+### Mobile extras
+
+The toolbar above the game screen also has:
+- **Fullscreen** - real Fullscreen API; on Android Chrome this also auto-locks
+  landscape orientation (EmulatorJS's own behavior for the GBA core).
+- **Landscape** - a CSS-rotation fallback that works even where Fullscreen/
+  orientation-lock don't (iOS Safari doesn't support orientation lock at all).
+  Rotates the player screen to fill a portrait phone with a proper widescreen
+  layout.
+- A short vibration on tap for the on-screen D-pad/buttons, on devices that
+  support the Vibration API.
 
 ## Deploying to GitHub Pages
 

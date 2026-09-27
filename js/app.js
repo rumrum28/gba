@@ -24,6 +24,17 @@ const GAMES = [
 const UPLOAD_ENDPOINT = "http://localhost:8787/save";
 const UPLOAD_SECRET = "b367c1263f4d50ab4c9489a4e2e1f6d8"; // must match SAVE_UPLOAD_SECRET on the server
 
+/* =========================================================================
+   OPTIONAL cloud save (see server/apps-script/Code.gs).
+   A Google Apps Script Web App backed by your Drive - unlike UPLOAD_ENDPOINT
+   above (localhost only), this is reachable from any device anywhere, which
+   is what actually makes "play on my phone, continue on my laptop" work.
+   Leave CLOUD_SAVE_URL empty to disable it entirely.
+   ========================================================================= */
+const CLOUD_SAVE_URL = "https://script.google.com/macros/s/AKfycbwdCMqr8rJqMIBWA2r-hex1eTpEZsoYDE6lMgbzUwRI7B0MlF2jtu-iWpB_Y2ZyIaq8TQ/exec"; // e.g. "https://script.google.com/macros/s/AKfycb.../exec"
+const CLOUD_SAVE_KEY = "whenthedaysarered";  // must match SECRET_KEY in Code.gs
+const DEPLOYMENT_ID = "AKfycbwdCMqr8rJqMIBWA2r-hex1eTpEZsoYDE6lMgbzUwRI7B0MlF2jtu-iWpB_Y2ZyIaq8TQ"
+
 const EMULATORJS_CDN = "https://cdn.emulatorjs.org/stable/data/";
 
 /* =========================================================================
@@ -109,10 +120,61 @@ function renderLauncher() {
 }
 
 /* =========================================================================
-   Save-file resolution: pick the newest of (IndexedDB copy, server .sav)
-   Uses the server response's Last-Modified header as the file's timestamp;
-   if that header is missing (some static hosts omit it) the server copy is
-   only used when no local copy exists yet.
+   Base64 <-> bytes (chunked to stay safe for large arrays; String.fromCharCode
+   with a giant spread/args list can blow the call stack).
+   ========================================================================= */
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/* =========================================================================
+   Cloud save (Google Apps Script + Drive) - see server/apps-script/Code.gs.
+   Requests are kept "simple" (no custom headers, default text/plain POST
+   body) on purpose so the browser never sends a CORS preflight, which Apps
+   Script Web Apps don't handle.
+   ========================================================================= */
+async function fetchCloudSave(gameId) {
+  if (!CLOUD_SAVE_URL) return null;
+  try {
+    const url = `${CLOUD_SAVE_URL}?action=get&game=${encodeURIComponent(gameId)}&key=${encodeURIComponent(CLOUD_SAVE_KEY)}`;
+    const res = await fetch(url, { cache: "no-store" });
+    const data = await res.json();
+    if (!data.ok || !data.exists) return null;
+    return { bytes: base64ToBytes(data.base64), modifiedTime: data.modifiedTime };
+  } catch (e) {
+    return null; // cloud unreachable - fall back to local/server sources
+  }
+}
+
+async function pushCloudSave(gameId, bytes) {
+  if (!CLOUD_SAVE_URL) return;
+  try {
+    await fetch(CLOUD_SAVE_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: "save", game: gameId, key: CLOUD_SAVE_KEY, base64: bytesToBase64(bytes) }),
+    });
+  } catch (e) {
+    // best-effort - IndexedDB still has the save locally
+  }
+}
+
+/* =========================================================================
+   Save-file resolution: pick the newest of (IndexedDB copy, shipped server
+   .sav, cloud save). The server .sav uses its Last-Modified response header
+   as a timestamp (missing on some static hosts, treated as "unknown/oldest"
+   then); the cloud save's timestamp comes straight from Drive.
    ========================================================================= */
 async function resolveInitialSave(game) {
   const local = await idbGet("saves", game.id); // { gameId, bytes, savedAt, hash } | null
@@ -130,13 +192,16 @@ async function resolveInitialSave(game) {
     // no server save shipped yet - that's fine, start fresh
   }
 
-  if (local && (!serverBytes || local.savedAt >= serverTime)) {
-    return { bytes: local.bytes, source: "browser" };
-  }
-  if (serverBytes) {
-    return { bytes: serverBytes, source: "server" };
-  }
-  return null;
+  const cloud = await fetchCloudSave(game.id); // { bytes, modifiedTime } | null
+
+  const candidates = [];
+  if (local) candidates.push({ bytes: local.bytes, time: local.savedAt, source: "browser" });
+  if (serverBytes) candidates.push({ bytes: serverBytes, time: serverTime, source: "server" });
+  if (cloud) candidates.push({ bytes: cloud.bytes, time: cloud.modifiedTime, source: "cloud" });
+  if (candidates.length === 0) return null;
+
+  candidates.sort((a, b) => b.time - a.time);
+  return candidates[0];
 }
 
 /* =========================================================================
@@ -230,8 +295,9 @@ async function launchGame(game) {
 
   window.EJS_onSaveUpdate = async (e) => {
     // e: { hash, save, screenshot, format } - fired only when the SRAM
-    // content actually changed since the last check.
+    // content actually changed since the last check (every EJS_fixedSaveInterval).
     await idbPut("saves", { gameId: game.id, bytes: e.save, savedAt: Date.now(), hash: e.hash });
+    pushCloudSave(game.id, e.save); // best-effort, keeps other devices in sync automatically
   };
 
   loadEmulatorScript();
@@ -341,7 +407,13 @@ async function onDownloadSave() {
   const bytes = await window.EJS_emulator.gameManager.getSaveFile();
   await idbPut("saves", { gameId: currentGame.id, bytes, savedAt: Date.now() });
   downloadBlob(bytes, `${currentGame.id}.sav`);
-  toast("Save downloaded - upload it to games/savefiles/ to sync other devices");
+  toast("Save downloaded");
+
+  if (CLOUD_SAVE_URL) {
+    pushCloudSave(currentGame.id, bytes).then(() => toast("Synced to cloud"));
+  } else {
+    toast("Upload it to games/savefiles/ to sync other devices");
+  }
 
   if (UPLOAD_ENDPOINT) {
     try {
@@ -369,6 +441,7 @@ function onImportSaveFile(fileList) {
     const bytes = new Uint8Array(reader.result);
     applySaveBytes(bytes);
     await idbPut("saves", { gameId: currentGame.id, bytes, savedAt: Date.now() });
+    pushCloudSave(currentGame.id, bytes);
     toast(`Imported ${file.name}`);
   };
   reader.readAsArrayBuffer(file);

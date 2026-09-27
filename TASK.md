@@ -19,6 +19,34 @@ Mute toggle — no console errors. A "Mute" button was added to the custom top t
 (next to Download/Import Save) per a follow-up ask; uses the confirmed real
 `EJS_emulator.setVolume(0 / .volume)` + `.muted` API from frontend.js.
 
+## Update: cloud saves via Google Drive (added)
+User's real problem: saves only lived in per-browser IndexedDB, or synced via
+the localhost-only upload server - neither reaches them on a different
+device. Added `server/apps-script/Code.gs`: a Google Apps Script Web App
+(deployed by the user, tied to their own Drive) exposing `doGet`/`doPost` as
+a public HTTP endpoint (no OAuth needed by the player). Stores one real
+`<gameId>.sav` file per game in a Drive folder "GBA Launcher Saves".
+Requests are kept header-free/simple on purpose (GET query string, default
+`text/plain` POST body) so the browser never sends a CORS preflight, which
+Apps Script Web Apps don't handle.
+
+Client side (`js/app.js`): `CLOUD_SAVE_URL`/`CLOUD_SAVE_KEY` (both empty =
+disabled, verified as a safe no-op). When set: `resolveInitialSave` now does
+a 3-way "newest wins" compare across IndexedDB / shipped `.sav` / cloud, and
+`EJS_onSaveUpdate` auto-pushes to the cloud on every detected save change (in
+addition to the existing IndexedDB mirror), so play-on-phone /
+continue-on-laptop works without manually clicking anything. Download
+Save / Import Save also push to the cloud now.
+
+Verified: base64 chunked encode/decode round-trips a full 128KB save
+byte-for-byte (tested in Node). Verified in-browser that with the config left
+empty, the app behaves identically to before (no regressions). Could NOT
+verify the live Apps Script deployment end-to-end - that requires the user's
+own Google account, which I don't have access to. If they report the cloud
+save isn't working, check: SECRET_KEY/CLOUD_SAVE_KEY match, deployment access
+is "Anyone", and they redeployed a new version after any Code.gs edit
+(saving in the Apps Script editor alone does not update the live `/exec` URL).
+
 ## Possible follow-ups (not requested yet, don't do unless asked)
 - Add cover art images under `games/covers/` (currently falls back to a placeholder).
 - Wire up `UPLOAD_ENDPOINT`/`UPLOAD_SECRET` in `js/app.js` if the user actually runs
