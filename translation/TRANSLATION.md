@@ -313,7 +313,6 @@ menutxt         @Label_00b6, "Quit"
   Welman, not fully recovered, went to the Auric Collective when summoned and comes back acting strangely cold).
 - **2026-09-29 — Batch 75 done:** 186a25c 186aa1c 186b01c 186b32c 186b66c 186b96c 186bf2c (Murno's sparring match (the partner mistakes it for an
   attack), match intro lines for partner/V.E/Lemmy/Jade, Lemmy recovered; Day 10: Murno and Welman are missing).
-- **2026-09-29 — STOPPED (usage limit) mid batch 76:** 186c49c done + built. **186ca0c NOT imported**: `work/tl/make_186c49c.js` has 2 lines > 38 chars
-  (line keys 116 and 258); shorten them, run `node work/tl/make_186c49c.js`, then `node tools/boxes.js import 186ca0c`, `addbuild`, `build`.
-  **Resume after that at 186d88c** (then 186eb6c 186f80c 186fcdc 18700ec ... 187f5dc, then 188xxxx, then side content 172–17b).
-  Status at stop: ~28.5k EN / ~12.1k JP strings (~70%). Main story done through Day 9 / start of Day 10.
+- **2026-09-29 — Batch 76 done:** 186c49c 186ca0c (Day 10: searching for Murno and Welman; Anis's gang escaped with Welman's help
+  and fled via the West Gate to Sport Cave; Tier stays behind to watch the town since V.E is hopeless with directions; Belvoren is brushed off).
+  **Next: 186d88c**, then 186eb6c 186f80c 186fcdc 18700ec ... 187f5dc, then 188xxxx, then side content 172–17b.
