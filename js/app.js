@@ -19,14 +19,7 @@ const GAMES = [
     rom: "games/Summon Night - Craft Sword Monogatari - Hajimari no Ishi (Japan) (patched).gba",
     save: "games/savefiles/Summon Night - Craft Sword Monogatari - Hajimari no Ishi (Japan) (patched).sav",
     cover: "games/covers/Summon Night - Craft Sword Monogatari - Hajimari no Ishi (Japan) (patched).svg", // optional; falls back to a placeholder if missing
-  },
-  {
-    id: "summon-night-swordcraft-story-3-en-wip",
-    title: "Summon Night Swordcraft Story 3 (EN WIP)",
-    rom: "games/Summon Night Swordcraft Story 3 (EN WIP).gba",
-    save: "games/savefiles/Summon Night Swordcraft Story 3 (EN WIP).sav",
-    cover: "games/covers/Summon Night Swordcraft Story 3 (EN WIP).svg", // optional; falls back to a placeholder if missing
-  },
+  }
 ];
 
 /* =========================================================================
