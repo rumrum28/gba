@@ -315,4 +315,8 @@ menutxt         @Label_00b6, "Quit"
   attack), match intro lines for partner/V.E/Lemmy/Jade, Lemmy recovered; Day 10: Murno and Welman are missing).
 - **2026-09-29 — Batch 76 done:** 186c49c 186ca0c (Day 10: searching for Murno and Welman; Anis's gang escaped with Welman's help
   and fled via the West Gate to Sport Cave; Tier stays behind to watch the town since V.E is hopeless with directions; Belvoren is brushed off).
-  **Next: 186d88c**, then 186eb6c 186f80c 186fcdc 18700ec ... 187f5dc, then 188xxxx, then side content 172–17b.
+- **2026-09-29 — Batch 77 done:** 186d88c 186eb6c 186f80c 186fcdc 18700ec (Day 10: the hero finds Murno leaving with Welman and Anis's gang;
+  Welman says they're going home, Murno tells the hero not to follow; V.E slaps sense into the hero ("If Murno told you to die, would you die!?");
+  showdown: V.E and Jade hold off Gilan/Pike so the hero can chase Murno ("the man/woman I believe in!"); Anis retreats with Murno;
+  the ruined Mishus Village; on to the Govan Ruins (upstream name)). Build clean. ~29.0k EN / ~11.6k JP.
+  **Next: 18706ec**, then 1870c0c 187185c 187314c 187409c ... 187f5dc, then 188xxxx, then side content 172–17b.
